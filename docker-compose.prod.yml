@@ -17,6 +17,16 @@ services:
       - /opt/ggcdc-oa/data:/app/data
       - /opt/ggcdc-oa/uploads:/app/uploads
       - /opt/ggcdc-oa/backups:/app/backups
+      # 源码挂载（只读）：代码改动后只需 `docker compose restart`，不必 rebuild
+      # 改了 package.json / Dockerfile 时仍需走完整 `up -d --build`
+      - ./server:/app/server:ro
+      - ./scripts:/app/scripts:ro
+      - ./app.js:/app/app.js:ro
+      - ./index.html:/app/index.html:ro
+      - ./styles.css:/app/styles.css:ro
+      - ./legacy-browser.js:/app/legacy-browser.js:ro
+      - ./browser-check.html:/app/browser-check.html:ro
+      - ./docs:/app/docs:ro
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
