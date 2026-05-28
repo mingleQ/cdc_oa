@@ -2,7 +2,10 @@ FROM node:22-bookworm-slim AS deps
 
 WORKDIR /app
 
-RUN apt-get update \
+# 国内服务器构建：apt 走腾讯云 debian 镜像，避免 deb.debian.org 拖慢
+RUN sed -i 's|deb.debian.org|mirrors.cloud.tencent.com|g; s|security.debian.org|mirrors.cloud.tencent.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null \
+  ; sed -i 's|deb.debian.org|mirrors.cloud.tencent.com|g; s|security.debian.org|mirrors.cloud.tencent.com|g' /etc/apt/sources.list 2>/dev/null ; true \
+  && apt-get update \
   && apt-get install -y --no-install-recommends python3 make g++ \
   && rm -rf /var/lib/apt/lists/*
 
