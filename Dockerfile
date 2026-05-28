@@ -23,7 +23,6 @@ COPY server ./server
 COPY scripts ./scripts
 COPY index.html app.js styles.css legacy-browser.js browser-check.html ./
 COPY docs ./docs
-COPY .claude ./.claude
 COPY OA功能测试用例.md OA角色冒烟测试报告.md OA正式版阶段验收记录.md README.md ./
 
 RUN mkdir -p /app/data /app/uploads /app/backups \
