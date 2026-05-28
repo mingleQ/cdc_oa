@@ -7,7 +7,9 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
-RUN npm ci --omit=dev
+# 国内服务器构建：npm 走腾讯云镜像，避免外网 registry.npmjs.org 拖慢
+RUN npm config set registry https://mirrors.cloud.tencent.com/npm/ \
+  && npm ci --omit=dev --no-audit --no-fund
 
 FROM node:22-bookworm-slim AS runtime
 
