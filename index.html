@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- 强制 360 / QQ / 搜狗等双核浏览器使用极速(Webkit/Chromium)内核，避免落入 IE 兼容模式 -->
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+    <meta name="renderer" content="webkit" />
+    <meta name="force-rendering" content="webkit" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>贵港市疾控中心 OA 协同办公系统</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="login" id="loginPanel">
+      <div class="login-card">
+        <div class="brand-mark">OA</div>
+        <h1>贵港市疾病预防控制中心</h1>
+        <p>协同办公系统</p>
+        <form id="loginForm" class="login-form">
+          <label>
+            账号
+            <input id="loginAccount" autocomplete="username" placeholder="请输入账号" />
+          </label>
+          <label>
+            密码
+            <input id="loginPassword" type="password" autocomplete="current-password" placeholder="请输入密码" />
+          </label>
+          <button type="submit">登录系统</button>
+        </form>
+        <small>系统数据保存在中心服务器，请妥善保管账号；首次登录后请在右上角「修改密码」中更改初始密码。</small>
+      </div>
+    </div>
+
+    <div class="shell" id="appShell" hidden>
+      <aside class="sidebar">
+        <div class="side-brand">
+          <div class="brand-mark small">疾</div>
+          <div>
+            <strong>疾控 OA</strong>
+            <span>内网协同办公</span>
+          </div>
+        </div>
+        <nav id="moduleNav" class="module-nav" aria-label="系统模块"></nav>
+      </aside>
+
+      <main class="workspace">
+        <header class="topbar">
+          <div>
+            <h1 id="pageTitle">工作台</h1>
+            <p id="pageSubtitle">待办、申请、通知和常用功能入口</p>
+          </div>
+          <div class="top-actions">
+            <button class="icon-btn notify-btn" id="notifyBtn" title="消息通知">🔔<span class="notify-badge" id="notifyCount" hidden>0</span></button>
+            <button class="secondary" id="profileBtn">我的资料</button>
+            <button class="secondary" id="pwdBtn">修改密码</button>
+            <div class="user-chip">
+              <span id="currentUserName"></span>
+              <small id="currentUserRole"></small>
+            </div>
+            <button class="secondary" id="logoutBtn">退出</button>
+          </div>
+        </header>
+
+        <section id="viewRoot" class="view-root"></section>
+      </main>
+    </div>
+
+    <template id="modalTemplate">
+      <div class="modal-mask">
+        <div class="modal">
+          <header>
+            <h2></h2>
+            <button class="icon-btn modal-close" title="关闭">×</button>
+          </header>
+          <div class="modal-body"></div>
+        </div>
+      </div>
+    </template>
+
+    <script nomodule src="./legacy-browser.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

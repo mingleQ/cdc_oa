@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OA 浏览器检测</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #eef3f8;
+        color: #1f2d3d;
+        font-family: "Microsoft YaHei", Arial, sans-serif;
+      }
+      .card {
+        width: 680px;
+        max-width: calc(100vw - 32px);
+        background: #fff;
+        border: 1px solid #d8e0e8;
+        border-radius: 8px;
+        padding: 28px;
+        line-height: 1.8;
+        box-shadow: 0 18px 45px rgba(37, 54, 74, 0.14);
+      }
+      h1 { margin: 0 0 14px; font-size: 24px; }
+      .ok { color: #17643c; font-weight: 700; }
+      .bad { color: #c24135; font-weight: 700; }
+      code { background: #f3f6f9; padding: 2px 6px; border-radius: 4px; }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>OA 浏览器检测</h1>
+      <div id="result">正在检测...</div>
+    </div>
+    <script>
+      (function () {
+        var checks = [
+          ["Promise", typeof Promise !== "undefined"],
+          ["fetch", typeof fetch !== "undefined"],
+          ["FormData", typeof FormData !== "undefined"],
+          ["localStorage", typeof localStorage !== "undefined"],
+          ["Blob", typeof Blob !== "undefined"],
+          ["URL.createObjectURL", typeof URL !== "undefined" && typeof URL.createObjectURL === "function"],
+          ["classList", "classList" in document.documentElement],
+          ["ES Module", "noModule" in document.createElement("script")]
+        ];
+        var failed = checks.filter(function (item) { return !item[1]; });
+        var ua = navigator.userAgent;
+        var isIe = /MSIE|Trident/.test(ua);
+        var html = "";
+        if (failed.length === 0 && !isIe) {
+          html += '<p class="ok">检测通过：当前浏览器可以访问 OA 系统。</p>';
+          html += '<p>如果使用 360 浏览器，请确认地址栏右侧显示为「极速模式」。</p>';
+          html += '<p><a href="/">进入 OA 系统</a></p>';
+        } else {
+          html += '<p class="bad">检测未通过：当前浏览器不适合办理 OA 业务。</p>';
+          html += '<p>建议使用：360 浏览器极速模式、Chrome、Edge、QQ 浏览器极速模式。</p>';
+          html += '<p>如果当前是 360 浏览器，请点击地址栏右侧的内核图标，将「兼容模式」切换为「极速模式」。</p>';
+          if (isIe) html += '<p>检测到 IE 内核：IE 不作为正式支持浏览器。</p>';
+          if (failed.length) html += '<p>缺失能力：' + failed.map(function (item) { return '<code>' + item[0] + '</code>'; }).join(" ") + '</p>';
+        }
+        html += '<p style="color:#637083">User-Agent：' + ua.replace(/[<>&]/g, "") + '</p>';
+        document.getElementById("result").innerHTML = html;
+      })();
+    </script>
+  </body>
+</html>

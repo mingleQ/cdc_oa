@@ -1,0 +1,17 @@
+node_modules/
+data/
+uploads/
+backups/
+docker-data/
+docker-uploads/
+docker-backups/
+*.log
+.DS_Store
+
+# 真实密钥 / 个人工具配置 / 误传镜像
+.env
+.env.local
+.claude/
+*.tar.gz
+*.bak
+_legacy_*/

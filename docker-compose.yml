@@ -1,0 +1,24 @@
+services:
+  oa:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ggcdc-oa:local
+    container_name: ggcdc-oa
+    restart: unless-stopped
+    ports:
+      - "3080:3000"
+    environment:
+      PORT: "3000"
+      OA_DB_PATH: /app/data/oa.sqlite
+      OA_JWT_SECRET: ${OA_JWT_SECRET:-please-change-this-before-production}
+    volumes:
+      - ./docker-data:/app/data
+      - ./docker-uploads:/app/uploads
+      - ./docker-backups:/app/backups
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
