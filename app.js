@@ -2225,7 +2225,7 @@
         if (act === "terminate") body.terminate = 1;
         try {
           await api(`/api/requests/${id}/${endpoint}`, { method: "POST", body: JSON.stringify(body) });
-          closeModal(); await renderView(); refreshNotify();
+          closeAllModals(); await renderView(); refreshNotify();
         } catch (err) { alert(err.message); }
       });
     };
@@ -2349,7 +2349,7 @@
         const f = new FormData(e.currentTarget);
         const body = { comment: f.get("comment"), approvedAt: toISO(f.get("approvedAt")) };
         if (needTarget) body.targetUserId = Number(f.get("targetUserId"));
-        try { await api(`/api/instances/${id}/${act}`, { method: "POST", body: JSON.stringify(body) }); closeModal(); await renderView(); refreshNotify(); }
+        try { await api(`/api/instances/${id}/${act}`, { method: "POST", body: JSON.stringify(body) }); closeAllModals(); await renderView(); refreshNotify(); }
         catch (err) { alert(err.message); }
       });
     };
@@ -2499,7 +2499,7 @@
       <div class="filter-bar">
         <input data-f="keyword" placeholder="关键字（标题/文号/来文单位）" />
         <select data-f="type"><option value="">全部</option><option value="收文">收文</option><option value="发文">发文</option></select>
-        <select data-f="status"><option value="">全部状态</option><option value="pending">办理中</option><option value="approved">已办结</option><option value="rejected">已退回</option><option value="withdrawn">已撤回</option></select>
+        <select data-f="status"><option value="">全部状态</option><option value="pending">办理中</option><option value="approved">已办结</option><option value="archived">已归档</option><option value="rejected">已退回</option><option value="withdrawn">已撤回</option></select>
         <input data-f="from" type="date" /><input data-f="to" type="date" />
         <button class="secondary" data-do-filter>查询</button><button class="link" data-reset-filter>重置</button>
       </div>
@@ -2532,7 +2532,15 @@
         <td class="row-actions">
           <button class="secondary" data-doc-detail="${doc.id}" title="打开公文，做阅读、签字、反馈等留痕动作">阅文</button>
           ${canApprove() && doc.status === "pending" ? `<button class="primary" data-doc-approve="${doc.id}" title="写审批意见并把流程推到下一节点">审批</button>` : ""}
-          ${canApprove() ? `<button class="secondary" data-doc-distribute="${doc.id}" title="把公文派发给指定的人去阅读">分发</button>` : ""}
+          ${(() => {
+            if (!canApprove()) return "";
+            // 发文：仅在「分发」节点出现，且分发后会自动推进到下一节点（归档）
+            if (doc.type === "发文") return doc.status === "pending" && doc.current_node === "分发"
+              ? `<button class="secondary" data-doc-distribute="${doc.id}" title="选择阅读人，提交后自动推进到「归档」节点">分发</button>`
+              : "";
+            // 收文：随时可分发阅读对象
+            return `<button class="secondary" data-doc-distribute="${doc.id}" title="把公文派发给指定的人去阅读">分发</button>`;
+          })()}
         </td></tr>`).join("")}</tbody></table>`;
   }
 
@@ -2551,24 +2559,31 @@
           : `<label>文号<input name="no" value="贵疾控发〔2026〕" required /></label>
              <label>登记/成文日期<input type="date" name="docDate" value="${today}" /></label>`}
         <label class="full">${recv ? "来文标题" : "公文标题"}<input name="title" required /></label>
-        ${recv ? "" : `<label class="full">主送机关<input name="mainSend" /></label><label class="full">抄送机关<input name="ccSend" /></label>`}
+        ${recv ? "" : `<label class="full">主送机关<input name="mainSend" placeholder="如 各县（市、区）疾控中心" /></label><label class="full">抄送机关<input name="ccSend" placeholder="如 自治区疾控中心" /></label>`}
         <label>承办科室<input name="ownerDept" value="${escapeHtml(session.dept)}" required /></label>
         <label>密级<select name="secret"><option>普通</option><option>内部</option><option>秘密</option><option>机密</option></select></label>
         <label>紧急程度<select name="urgency"><option>一般</option><option>平件</option><option>急件</option><option>特急</option></select></label>
-        ${recv ? "" : `<label>用印/盖章登记<input name="sealNo" placeholder="如：已盖中心公章" /></label>`}
-        <label class="full">${recv ? "摘要" : "正文摘要"}<textarea name="content" rows="3" placeholder="${recv ? "请简述来文要点" : ""}"></textarea></label>
+        <label class="full">${recv ? "摘要" : "正文摘要"}<textarea name="content" rows="3" placeholder="${recv ? "请简述来文要点" : "请填写发文正文摘要"}"></textarea></label>
+        ${recv ? "" : `<label class="full">发文附件<input type="file" name="attachments" multiple /><span class="muted" style="font-size:12px">可一次选择多个文件，提交后自动挂到本发文</span></label>`}
         <div class="full row-actions"><button class="primary" type="submit">提交公文流程</button><button class="secondary modal-cancel" type="button">取消</button></div>
       </form>`);
     $("docForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const f = new FormData(e.currentTarget);
+      const files = recv ? [] : Array.from(e.currentTarget.attachments?.files || []);
       try {
-        await api("/api/documents", { method: "POST", body: JSON.stringify({
+        const created = await api("/api/documents", { method: "POST", body: JSON.stringify({
           type, no: f.get("no"), title: f.get("title"), secret: f.get("secret"), urgency: f.get("urgency"),
           ownerDept: f.get("ownerDept"), content: f.get("content"), docDate: f.get("docDate"),
-          sourceUnit: f.get("sourceUnit") || "", mainSend: f.get("mainSend") || "", ccSend: f.get("ccSend") || "", sealNo: f.get("sealNo") || "",
+          sourceUnit: f.get("sourceUnit") || "", mainSend: f.get("mainSend") || "", ccSend: f.get("ccSend") || "",
           originNo: f.get("originNo") || "", issueDate: f.get("issueDate") || "", copies: f.get("copies") || 0,
         }) });
+        // 用印号在拟稿阶段不再要求；统一在「用印登记」节点录入。
+        for (const file of files) {
+          const fd = new FormData(); fd.append("file", file);
+          try { await api(`/api/attachments/document/${created.id}`, { method: "POST", body: fd }); }
+          catch (err) { toast(`附件「${file.name}」上传失败：${err.message}`, "err"); }
+        }
         closeModal(); await setView("document"); refreshNotify();
       } catch (err) { alert(err.message); }
     });
@@ -3022,13 +3037,17 @@
     node.querySelector("h2").textContent = title;
     node.querySelector(".modal-body").innerHTML = body;
     document.body.appendChild(node);
-    node.querySelector(".modal-close").addEventListener("click", closeModal);
-    node.querySelectorAll(".modal-cancel").forEach((b) => b.addEventListener("click", closeModal));
-    node.addEventListener("click", (e) => { if (e.target === node) closeModal(); });
+    const closeThis = () => node.remove();
+    node.querySelector(".modal-close").addEventListener("click", closeThis);
+    node.querySelectorAll(".modal-cancel").forEach((b) => b.addEventListener("click", closeThis));
+    node.addEventListener("click", (e) => { if (e.target === node) closeThis(); });
   }
   function closeModal() {
-    const node = document.querySelector(".modal-mask");
-    if (node) node.remove();
+    const all = document.querySelectorAll(".modal-mask");
+    if (all.length) all[all.length - 1].remove();
+  }
+  function closeAllModals() {
+    document.querySelectorAll(".modal-mask").forEach((n) => n.remove());
   }
 
   /* ---------------- 修改密码 ---------------- */

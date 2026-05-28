@@ -15,7 +15,12 @@ function register(app) {
     const params = [...where.params];
     let cond = `WHERE ${where.sql}`;
     if (req.query.type) { cond += " AND doc.type = ?"; params.push(req.query.type); }
-    if (req.query.status) { cond += " AND doc.status = ?"; params.push(req.query.status); }
+    if (req.query.status === "archived") {
+      // 「已归档」= status approved 且 current_node 落在归档/结束语义节点
+      cond += " AND doc.status = 'approved' AND doc.current_node IN ('归档', '办结归档', '结束')";
+    } else if (req.query.status) {
+      cond += " AND doc.status = ?"; params.push(req.query.status);
+    }
     if (req.query.keyword) { cond += " AND (doc.title LIKE ? OR doc.no LIKE ? OR doc.source_unit LIKE ?)"; params.push(`%${req.query.keyword}%`, `%${req.query.keyword}%`, `%${req.query.keyword}%`); }
     if (req.query.from) { cond += " AND doc.created_at >= ?"; params.push(req.query.from); }
     if (req.query.to) { cond += " AND doc.created_at <= ?"; params.push(`${req.query.to}T23:59:59`); }
@@ -92,7 +97,32 @@ function register(app) {
     if (!doc) return res.status(404).json({ message: "公文不存在" });
     const ids = Array.isArray(req.body.readerIds) ? req.body.readerIds : [];
     const users = ids.map((id) => getUserById(id)).filter(Boolean);
-    const readers = users.length ? users.map((u) => u.name).join("、") : (Array.isArray(req.body.readers) ? req.body.readers.join("、") : String(req.body.readers || ""));
+    if (!users.length) return res.status(400).json({ message: "请选择分发对象" });
+    const readers = users.map((u) => u.name).join("、");
+
+    // 发文：分发必须在「分发」节点；分发完成后直接归档（清 token + status=approved）
+    // 此处不走 approval.approve，避免「当前 token 审批人」校验阻断管理员或异部门 leader 的分发动作
+    const isOutgoing = doc.type === "发文";
+    if (isOutgoing) {
+      if (doc.status !== "pending" || doc.current_node !== "分发") {
+        return res.status(400).json({ message: "当前不在「分发」节点，无法发起分发" });
+      }
+      const summary = `分发至：${readers}${req.body.comment ? `（${req.body.comment}）` : ""}`;
+      db.prepare("DELETE FROM workflow_active_nodes WHERE business_type = 'document' AND business_id = ?").run(doc.id);
+      db.prepare(`UPDATE documents
+        SET readers = ?, reader_ids = ?, status = 'approved', current_node = '归档',
+            current_node_id = NULL, current_approver_id = NULL, pending_approvers = '', updated_at = ?
+        WHERE id = ?`).run(readers, buildReaderIds(ids), now(), doc.id);
+      writeApproval("document", doc.id, req.user, "分发", "同意", summary, req.body.approvedAt);
+      users.forEach((u) => notify(u.id, `公文待阅：${doc.title}`, `${req.user.name} 向您分发${doc.type}「${doc.title}」`, "document", doc.id));
+      if (doc.created_by && doc.created_by !== req.user.id) {
+        notify(doc.created_by, `发文已归档：${doc.title}`, `${req.user.name} 完成分发，发文已归档`, "document", doc.id, "info");
+      }
+      writeOperationLog(req.user, "公文管理", "公文分发并归档", "document", String(doc.id), readers, clientIp(req));
+      return res.json(getDocumentById(doc.id));
+    }
+
+    // 收文：保留旧行为——按指定人范围更新阅读列表，不影响审批节点
     const prevNode = doc.current_node;
     db.prepare("UPDATE documents SET readers = ?, reader_ids = ?, current_node = '分发阅读', updated_at = ? WHERE id = ?")
       .run(readers, buildReaderIds(ids), now(), doc.id);

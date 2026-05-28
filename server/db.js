@@ -466,20 +466,34 @@ function normalizeDefaultAccounts() {
   });
 }
 
+// 发文流程节点目标定义（核稿→会签→签发→复核→用印登记→分发→归档）
+// 统一在 ensureDefaultWorkflows 和 upgradeDocumentOutEngine 中复用，保证「首次建库」与「老库升级」配置一致。
+const DOCUMENT_OUT_NODES = [
+  { name: "核稿", approverType: "dept_leader", approverValue: "", mode: "single" },
+  { name: "会签", approverType: "role", approverValue: "leader", mode: "countersign" },
+  { name: "签发", approverType: "role", approverValue: "admin", mode: "single" },
+  { name: "复核", approverType: "role", approverValue: "leader", mode: "single" },
+  { name: "用印登记", approverType: "role", approverValue: "leader", mode: "single" },
+  { name: "分发", approverType: "role", approverValue: "leader", mode: "single" },
+  { name: "归档", approverType: "role", approverValue: "admin", mode: "single" },
+];
+
 function ensureDefaultWorkflows() {
   const count = db.prepare("SELECT COUNT(*) AS count FROM workflow_definitions").get().count;
   if (count > 0) return;
   const createWorkflow = db.transaction((businessType, name, nodes) => {
     const result = db.prepare("INSERT INTO workflow_definitions (business_type, name, version, enabled, created_at) VALUES (?, ?, 1, 1, ?)")
       .run(businessType, name, now());
-    const insertNode = db.prepare("INSERT INTO workflow_nodes (workflow_id, node_name, approver_type, approver_value, condition_json, sort_order) VALUES (?, ?, ?, ?, ?, ?)");
+    const insertNode = db.prepare("INSERT INTO workflow_nodes (workflow_id, node_name, approver_type, approver_value, condition_json, approve_mode, sort_order, allow_terminal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
     nodes.forEach((node, index) => insertNode.run(
       result.lastInsertRowid,
       node.name,
       node.approverType || "role",
       node.approverValue || "leader",
       JSON.stringify(node.condition || {}),
+      node.mode || "single",
       index + 1,
+      index === nodes.length - 1 ? 1 : 0,
     ));
   });
   createWorkflow("leave", "请假审批默认流程", [
@@ -501,15 +515,8 @@ function ensureDefaultWorkflows() {
     { name: "办结归档", approverType: "role", approverValue: "admin" },
   ]);
   // 发文走独立流程：核稿 → 会签 → 签发 → 复核 → 用印登记 → 分发 → 归档
-  createWorkflow("document_out", "发文办理默认流程", [
-    { name: "核稿", approverType: "dept_leader", approverValue: "" },
-    { name: "会签", approverType: "role", approverValue: "leader" },
-    { name: "签发", approverType: "role", approverValue: "admin" },
-    { name: "复核", approverType: "role", approverValue: "admin" },
-    { name: "用印登记", approverType: "role", approverValue: "admin" },
-    { name: "分发", approverType: "role", approverValue: "admin" },
-    { name: "归档", approverType: "role", approverValue: "admin" },
-  ]);
+  // 审批人分层：避免后五节点全部 role=admin 卡在一个人手里
+  createWorkflow("document_out", "发文办理默认流程", DOCUMENT_OUT_NODES);
 }
 
 /* ============================================================
@@ -823,17 +830,19 @@ function upgradeDocumentEngine() {
   } catch (e) { /* 表不存在时跳过 */ }
 }
 
-// 发文流程升级：旧库可能没有 document_out 流程，幂等补齐
+// 发文流程升级：旧库可能没有 document_out 流程，或配置过期，幂等补齐
 // 新链路：核稿 → 会签 → 签发 → 复核 → 用印登记 → 分发 → 归档
+// 指纹比对：节点名 + 审批人类型 + 审批人值 + 审批模式 全部命中才认为已对齐。
 function upgradeDocumentOutEngine() {
   try {
     const wfRow = db.prepare(
       "SELECT * FROM workflow_definitions WHERE business_type = 'document_out' AND enabled = 1 ORDER BY version DESC LIMIT 1"
     ).get();
-    const targetNames = ["核稿", "会签", "签发", "复核", "用印登记", "分发", "归档"];
+    const sig = (n) => `${n.name || n.node_name}|${n.approverType || n.approver_type}|${n.approverValue ?? n.approver_value ?? ""}|${n.mode || n.approve_mode || "single"}`;
+    const targetSig = DOCUMENT_OUT_NODES.map(sig).join("\n");
     if (wfRow) {
-      const names = db.prepare("SELECT node_name FROM workflow_nodes WHERE workflow_id = ? ORDER BY sort_order").all(wfRow.id).map((n) => n.node_name);
-      if (names.length === targetNames.length && names.every((n, i) => n === targetNames[i])) return;
+      const existing = db.prepare("SELECT node_name, approver_type, approver_value, approve_mode FROM workflow_nodes WHERE workflow_id = ? ORDER BY sort_order").all(wfRow.id);
+      if (existing.map(sig).join("\n") === targetSig) return;
     }
     const nextVersion = (wfRow?.version || 0) + 1;
     db.transaction(() => {
@@ -842,17 +851,8 @@ function upgradeDocumentOutEngine() {
         .run("document_out", "发文办理流程", nextVersion, now());
       const wfId = ins.lastInsertRowid;
       const insertNode = db.prepare("INSERT INTO workflow_nodes (workflow_id, node_name, approver_type, approver_value, condition_json, approve_mode, sort_order, allow_terminal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-      const defs = [
-        { name: "核稿", approverType: "dept_leader", approverValue: "", mode: "single" },
-        { name: "会签", approverType: "role", approverValue: "leader", mode: "countersign" },
-        { name: "签发", approverType: "role", approverValue: "admin", mode: "single" },
-        { name: "复核", approverType: "role", approverValue: "admin", mode: "single" },
-        { name: "用印登记", approverType: "role", approverValue: "admin", mode: "single" },
-        { name: "分发", approverType: "role", approverValue: "admin", mode: "single" },
-        { name: "归档", approverType: "role", approverValue: "admin", mode: "single" },
-      ];
-      const nodeIds = defs.map((node, index) => {
-        const r = insertNode.run(wfId, node.name, node.approverType, node.approverValue, "{}", node.mode, index + 1, index === defs.length - 1 ? 1 : 0);
+      const nodeIds = DOCUMENT_OUT_NODES.map((node, index) => {
+        const r = insertNode.run(wfId, node.name, node.approverType, node.approverValue, "{}", node.mode, index + 1, index === DOCUMENT_OUT_NODES.length - 1 ? 1 : 0);
         return r.lastInsertRowid;
       });
       // 显式建 DAG edges：n1→n2→…→末节点→NULL（终止）
