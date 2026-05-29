@@ -11,6 +11,19 @@ const { UPLOAD_DIR, ALLOWED_UPLOAD_EXTS, UPLOAD_MAX_BYTES } = require("../config
 
 /* ---------------- 文件上传（带类型白名单） ---------------- */
 
+// multer/busboy 默认按 latin1 解析 multipart 文件名，中文会变成乱码。
+// 这里统一按 latin1->utf8 还原，无中文时还原结果与原值一致，安全幂等。
+function decodeOriginalName(name) {
+  if (!name) return name;
+  try {
+    const decoded = Buffer.from(name, "latin1").toString("utf8");
+    // 还原后若不含替换字符，说明确实是被误解析的 UTF-8，采用还原值
+    return decoded.includes("�") ? name : decoded;
+  } catch {
+    return name;
+  }
+}
+
 const upload = multer({
   storage: multer.diskStorage({
     destination(req, file, cb) {
@@ -50,11 +63,12 @@ function register(app) {
         fs.unlink(req.file.path, () => {});
         return res.status(403).json({ message: "无权限上传附件" });
       }
+      const originalName = decodeOriginalName(req.file.originalname);
       const result = db.prepare(`
         INSERT INTO attachments (business_type, business_id, original_name, stored_path, mime_type, size, uploaded_by, uploaded_by_name, created_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(req.params.businessType, req.params.businessId, req.file.originalname, req.file.path, req.file.mimetype, req.file.size, req.user.id, req.user.name, now());
-      writeOperationLog(req.user, "附件管理", "上传附件", req.params.businessType, String(req.params.businessId), req.file.originalname, clientIp(req));
+      `).run(req.params.businessType, req.params.businessId, originalName, req.file.path, req.file.mimetype, req.file.size, req.user.id, req.user.name, now());
+      writeOperationLog(req.user, "附件管理", "上传附件", req.params.businessType, String(req.params.businessId), originalName, clientIp(req));
       res.status(201).json(db.prepare("SELECT id, original_name, mime_type, size, uploaded_by_name, created_at FROM attachments WHERE id = ?").get(result.lastInsertRowid));
     });
   });
