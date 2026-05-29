@@ -28,8 +28,10 @@ app.use(helmet({
       "img-src": ["'self'", "data:", "blob:"],
       "connect-src": ["'self'"],
       "frame-src": ["'self'", "blob:"],
+      "upgrade-insecure-requests": null,
     },
   },
+  hsts: false,
   crossOriginResourcePolicy: { policy: "same-origin" },
 }));
 
