@@ -81,7 +81,12 @@ function register(app) {
     if (file.uploaded_by !== req.user.id && req.user.role_code !== "admin") {
       return res.status(403).json({ message: "仅上传者本人或管理员可删除该附件" });
     }
-    db.prepare("DELETE FROM attachments WHERE id = ?").run(file.id);
+    // attachment_downloads 通过外键引用 attachments(id) 且无 ON DELETE CASCADE，
+    // 必须先清子表的下载记录，再删附件本身，否则触发 FOREIGN KEY constraint failed。
+    db.transaction(() => {
+      db.prepare("DELETE FROM attachment_downloads WHERE attachment_id = ?").run(file.id);
+      db.prepare("DELETE FROM attachments WHERE id = ?").run(file.id);
+    })();
     if (file.stored_path) fs.unlink(file.stored_path, () => {});
     writeOperationLog(req.user, "附件管理", "删除附件", file.business_type, String(file.business_id), file.original_name, clientIp(req));
     res.json({ message: "已删除" });

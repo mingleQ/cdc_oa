@@ -673,7 +673,8 @@ button.link {
   background: none; border: 0; color: var(--primary); cursor: pointer; padding: 2px 4px; font-size: 13px;
 }
 button.link:hover { text-decoration: underline; }
-button.link.danger { color: #c62828; }
+button.link.danger { color: #c62828; background: none; min-height: 0; padding: 2px 4px; border-radius: 0; font-weight: 400; }
+button.link.danger:hover { background: none; color: #a83329; text-decoration: underline; }
 
 .tree-node {
   display: flex; justify-content: space-between; align-items: center;

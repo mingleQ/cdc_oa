@@ -2992,15 +2992,23 @@
     });
   }
 
+  // 优先取 RFC 5987 的 filename*（UTF-8 编码，含中文名），其次取普通 filename。
+  // 后端对中文名只有 filename* 是准确的，普通 filename 是 ASCII 兜底值（会乱码/丢字）。
+  function filenameFromDisposition(disposition, fallback) {
+    const star = (disposition || "").match(/filename\*=(?:UTF-8'')?([^;]+)/i);
+    if (star) { try { return decodeURIComponent(star[1].trim().replace(/^"|"$/g, "")); } catch { /* fallthrough */ } }
+    const plain = (disposition || "").match(/filename="?([^";]+)"?/i);
+    if (plain) { try { return decodeURIComponent(plain[1].trim()); } catch { return plain[1].trim(); } }
+    return fallback;
+  }
+
   async function downloadFile(id) {
     const response = await fetch(`/api/attachments/${id}/download`, { headers: { Authorization: `Bearer ${token}` } });
     if (!response.ok) return alert("下载失败");
     const blob = await response.blob();
-    const disposition = response.headers.get("content-disposition") || "";
-    const match = disposition.match(/filename\*?=(?:UTF-8'')?\"?([^\";]+)\"?/i);
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = url; link.download = match ? decodeURIComponent(match[1]) : "附件";
+    link.href = url; link.download = filenameFromDisposition(response.headers.get("content-disposition"), "附件");
     link.click(); URL.revokeObjectURL(url);
   }
 
@@ -3025,11 +3033,9 @@
     const response = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
     if (!response.ok) return alert("导出失败");
     const blob = await response.blob();
-    const disposition = response.headers.get("content-disposition") || "";
-    const match = disposition.match(/filename\*?=(?:UTF-8'')?\"?([^\";]+)\"?/i);
     const objectUrl = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.href = objectUrl; link.download = match ? decodeURIComponent(match[1]) : "导出.xlsx";
+    link.href = objectUrl; link.download = filenameFromDisposition(response.headers.get("content-disposition"), "导出.xlsx");
     link.click(); URL.revokeObjectURL(objectUrl);
   }
 
