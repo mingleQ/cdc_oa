@@ -2235,6 +2235,7 @@
         try {
           await api(`/api/requests/${id}/${endpoint}`, { method: "POST", body: JSON.stringify(body) });
           closeAllModals(); await renderView(); refreshNotify();
+          toast(`✓ 已${titleMap[act]}`);
         } catch (err) { alert(err.message); }
       });
     };
@@ -2358,8 +2359,11 @@
         const f = new FormData(e.currentTarget);
         const body = { comment: f.get("comment"), approvedAt: toISO(f.get("approvedAt")) };
         if (needTarget) body.targetUserId = Number(f.get("targetUserId"));
-        try { await api(`/api/instances/${id}/${act}`, { method: "POST", body: JSON.stringify(body) }); closeAllModals(); await renderView(); refreshNotify(); }
-        catch (err) { alert(err.message); }
+        try {
+          await api(`/api/instances/${id}/${act}`, { method: "POST", body: JSON.stringify(body) });
+          closeAllModals(); await renderView(); refreshNotify();
+          toast(`✓ 已${titleMap[act]}`);
+        } catch (err) { alert(err.message); }
       });
     };
     if (needTarget) getDirectory().then((dir) => build(dir.filter((u) => u.id !== session.id).map((u) => `<option value="${u.id}">${escapeHtml(u.name)}（${escapeHtml(u.dept)}）</option>`).join("")));
@@ -2714,6 +2718,7 @@
       try {
         await api(`/api/documents/${id}/${action}`, { method: "POST", body: JSON.stringify({ comment, approvedAt: toISO(f.get("approvedAt")) }) });
         closeModal(); await renderView(); refreshNotify();
+        toast(action === "reject" ? "✓ 已驳回，公文退回起草人" : "✓ 已同意，流程已推进到下一节点");
       } catch (err) { alert(err.message); }
     };
     $("docApproveForm").addEventListener("submit", (e) => { e.preventDefault(); act("approve"); });
@@ -2758,8 +2763,11 @@
       e.preventDefault();
       const readerIds = distBoxes().filter((b) => b.checked).map((b) => Number(b.value));
       if (!readerIds.length) return alert("请选择分发对象");
-      try { await api(`/api/documents/${id}/distribute`, { method: "POST", body: JSON.stringify({ readerIds, comment: e.currentTarget.comment.value }) }); closeModal(); await renderView(); refreshNotify(); }
-      catch (err) { alert(err.message); }
+      try {
+        await api(`/api/documents/${id}/distribute`, { method: "POST", body: JSON.stringify({ readerIds, comment: e.currentTarget.comment.value }) });
+        closeModal(); await renderView(); refreshNotify();
+        toast(`✓ 已分发给 ${readerIds.length} 人，已推送待阅通知`);
+      } catch (err) { alert(err.message); }
     });
   }
 
@@ -2800,8 +2808,11 @@
     const term = document.querySelector("[data-doc-terminate]");
     if (term) term.addEventListener("click", async () => {
       if (!confirm("确认直接办结？本流程将立即归档，其他并行节点也会一并结束。")) return;
-      try { await api(`/api/documents/${id}/approve`, { method: "POST", body: JSON.stringify({ comment: "直接办结", terminate: 1 }) }); closeModal(); await renderView(); refreshNotify(); }
-      catch (err) { alert(err.message); }
+      try {
+        await api(`/api/documents/${id}/approve`, { method: "POST", body: JSON.stringify({ comment: "直接办结", terminate: 1 }) });
+        closeModal(); await renderView(); refreshNotify();
+        toast("✓ 已办结并归档");
+      } catch (err) { alert(err.message); }
     });
     bindAttachmentForm("document", id);
   }
