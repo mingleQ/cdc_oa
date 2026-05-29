@@ -1982,8 +1982,8 @@
       const act = actByNode[n.node_name];
       if (act && act.action === "同意") return { cls: "done", badge: "已通过", who: act.approver_name, when: fmtTime(act.approved_at) };
       if (act && act.action === "驳回") return { cls: "rejected", badge: "已驳回", who: act.approver_name, when: fmtTime(act.approved_at) };
-      if (isPending && currentNames.has(n.node_name)) return { cls: "current", badge: "待审批", who: item.current_approver_name || "" };
-      return { cls: "todo", badge: "未到达", who: "", when: "" };
+      if (isPending && currentNames.has(n.node_name)) return { cls: "current", badge: "待审批", who: item.current_approver_name || n.expected_approver_name || "" };
+      return { cls: "todo", badge: "未到达", who: n.expected_approver_name ? `预计 ${n.expected_approver_name}` : "", when: "" };
     };
 
     // 有坐标 + 有边 ⇒ DAG 渲染；否则回退线性
@@ -2556,7 +2556,7 @@
              <label>发文日期<input type="date" name="issueDate" /></label>
              <label>收文日期<input type="date" name="docDate" value="${today}" /></label>
              <label>份数<input name="copies" type="number" min="0" value="1" /></label>`
-          : `<label>文号<input name="no" value="贵疾控发〔2026〕" required /></label>
+          : `<label>文号<input name="no" value="贵疾控发〔2026〕" required pattern=".*〕.*[0-9].*" title="请填写完整文号，如 贵疾控发〔2026〕15号" placeholder="贵疾控发〔2026〕15号" /></label>
              <label>登记/成文日期<input type="date" name="docDate" value="${today}" /></label>`}
         <label class="full">${recv ? "来文标题" : "公文标题"}<input name="title" required /></label>
         ${recv ? "" : `<label class="full">主送机关<input name="mainSend" placeholder="如 各县（市、区）疾控中心" /></label><label class="full">抄送机关<input name="ccSend" placeholder="如 自治区疾控中心" /></label>`}
@@ -2692,14 +2692,23 @@
       <form id="docApproveForm" class="form-grid">
         <label class="full">办理意见<textarea name="comment">同意</textarea></label>
         <label>审批时间<input type="datetime-local" name="approvedAt" value="${nowLocal()}" /></label>
-        <div class="full row-actions"><button class="primary" type="submit">提交</button><button class="secondary modal-cancel" type="button">取消</button></div>
+        <div class="full row-actions">
+          <button class="primary" type="submit">同意</button>
+          <button class="danger" type="button" id="docRejectBtn" title="退回给起草人">驳回</button>
+          <button class="secondary modal-cancel" type="button">取消</button>
+        </div>
       </form>`);
-    $("docApproveForm").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const f = new FormData(e.currentTarget);
-      try { await api(`/api/documents/${id}/approve`, { method: "POST", body: JSON.stringify({ comment: f.get("comment"), approvedAt: toISO(f.get("approvedAt")) }) }); closeModal(); await renderView(); refreshNotify(); }
-      catch (err) { alert(err.message); }
-    });
+    const act = async (action) => {
+      const f = new FormData($("docApproveForm"));
+      const comment = (f.get("comment") || "").toString().trim();
+      if (action === "reject" && (!comment || comment === "同意")) { alert("驳回请填写驳回理由"); return; }
+      try {
+        await api(`/api/documents/${id}/${action}`, { method: "POST", body: JSON.stringify({ comment, approvedAt: toISO(f.get("approvedAt")) }) });
+        closeModal(); await renderView(); refreshNotify();
+      } catch (err) { alert(err.message); }
+    };
+    $("docApproveForm").addEventListener("submit", (e) => { e.preventDefault(); act("approve"); });
+    $("docRejectBtn").addEventListener("click", () => act("reject"));
   }
 
   async function openDistributeForm(id) {

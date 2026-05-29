@@ -45,6 +45,10 @@ function register(app) {
       return res.status(403).json({ message: "无权限登记收文" });
     }
     if (!no || !title) return res.status(400).json({ message: "文号和标题必填" });
+    // 发文文号必须含完整序号：闭合括号「〕」之后需要出现数字，避免只填「贵疾控发〔2026〕」前缀
+    if (type === "发文" && !/\d/.test(String(no).split("〕").pop() || "")) {
+      return res.status(400).json({ message: "发文文号需填写完整序号，如「贵疾控发〔2026〕15号」" });
+    }
     // 发文走 document_out 流程；收文继续用 document 流程（阅文卡链路）
     const wfType = type === "发文" ? "document_out" : "document";
     const workflow = wf.getEnabledWorkflow(wfType) || wf.getEnabledWorkflow("document");
@@ -72,9 +76,21 @@ function register(app) {
     if (!canViewDocument(req.user, doc)) return res.status(403).json({ message: "无权限查看" });
     doc.approvals = db.prepare("SELECT * FROM approval_records WHERE business_type = 'document' AND business_id = ? ORDER BY id").all(doc.id);
     doc.receipts = db.prepare("SELECT * FROM document_receipts WHERE document_id = ? ORDER BY id").all(doc.id);
-    doc.workflow_nodes = doc.workflow_id
-      ? db.prepare("SELECT id, sort_order, node_name, node_type, node_kind, pos_x, pos_y, allow_terminal FROM workflow_nodes WHERE workflow_id = ? ORDER BY sort_order, id").all(doc.workflow_id)
-      : [];
+    // 解析每个节点「该找谁」：以起草人作为上下文，未到达节点也能预测办理人，便于在时间线上展示
+    const drafter = getUserById(doc.created_by) || req.user;
+    const fallback = getUserByAccount("admin");
+    doc.workflow_nodes = (doc.workflow_id
+      ? db.prepare("SELECT id, sort_order, node_name, node_type, node_kind, pos_x, pos_y, allow_terminal, approver_type, approver_value, approve_mode FROM workflow_nodes WHERE workflow_id = ? ORDER BY sort_order, id").all(doc.workflow_id)
+      : []).map((n) => {
+        const approvers = wf.resolveApprovers(
+          { approver_type: n.approver_type, approver_value: n.approver_value, approve_mode: n.approve_mode },
+          drafter, fallback);
+        return { ...n, expected_approver_name: approvers.map((u) => u.name).join("、") };
+      });
+    // 当前待办人姓名（会签/并行时列出全部待签人）
+    const pendIds = String(doc.pending_approvers || "").split(",").map((s) => s.trim()).filter(Boolean);
+    const curIds = pendIds.length ? pendIds : (doc.current_approver_id ? [String(doc.current_approver_id)] : []);
+    doc.current_approver_name = curIds.map((id) => getUserById(id)).filter(Boolean).map((u) => u.name).join("、");
     doc.workflow_edges = doc.workflow_id
       ? db.prepare("SELECT id, from_node_id, to_node_id, label, condition_json FROM workflow_edges WHERE workflow_id = ? ORDER BY sort_order, id").all(doc.workflow_id)
       : [];

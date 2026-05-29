@@ -466,15 +466,16 @@ function normalizeDefaultAccounts() {
   });
 }
 
-// 发文流程节点目标定义（核稿→会签→签发→复核→用印登记→分发→归档）
+// 发文流程节点目标定义（核稿→审核→签发→分发→归档）
 // 统一在 ensureDefaultWorkflows 和 upgradeDocumentOutEngine 中复用，保证「首次建库」与「老库升级」配置一致。
+// 设计原则：单人审批、每个节点都能唯一解析到具体办理人，避免「会签」退化成单人或同一人连签两道。
+//   核稿 = 起草人所在科室负责人；审核/分发/归档 = 办公室（admin，全局唯一）；签发 = 中心主任（director，全局唯一）。
+// 注：真实审批人由甲方后续在「流程配置」自行调整，这里仅提供一套合理的默认流程。
 const DOCUMENT_OUT_NODES = [
   { name: "核稿", approverType: "dept_leader", approverValue: "", mode: "single" },
-  { name: "会签", approverType: "role", approverValue: "leader", mode: "countersign" },
-  { name: "签发", approverType: "role", approverValue: "admin", mode: "single" },
-  { name: "复核", approverType: "role", approverValue: "leader", mode: "single" },
-  { name: "用印登记", approverType: "role", approverValue: "leader", mode: "single" },
-  { name: "分发", approverType: "role", approverValue: "leader", mode: "single" },
+  { name: "审核", approverType: "role", approverValue: "admin", mode: "single" },
+  { name: "签发", approverType: "role", approverValue: "director", mode: "single" },
+  { name: "分发", approverType: "role", approverValue: "admin", mode: "single" },
   { name: "归档", approverType: "role", approverValue: "admin", mode: "single" },
 ];
 
@@ -831,7 +832,7 @@ function upgradeDocumentEngine() {
 }
 
 // 发文流程升级：旧库可能没有 document_out 流程，或配置过期，幂等补齐
-// 新链路：核稿 → 会签 → 签发 → 复核 → 用印登记 → 分发 → 归档
+// 新链路：核稿 → 审核 → 签发 → 分发 → 归档（指纹不一致即自动建新版本并启用）
 // 指纹比对：节点名 + 审批人类型 + 审批人值 + 审批模式 全部命中才认为已对齐。
 function upgradeDocumentOutEngine() {
   try {
