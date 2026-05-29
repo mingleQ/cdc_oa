@@ -2724,13 +2724,39 @@
     const dir = await getDirectory();
     openModal("公文分发", `
       <form id="distForm" class="form-grid">
-        <label class="full">分发对象（可多选）<select name="readerIds" multiple size="8" style="height:auto">${dir.map((u) => `<option value="${u.id}">${escapeHtml(u.name)}（${escapeHtml(u.dept)}）</option>`).join("")}</select></label>
+        <div class="full">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+            <span>分发对象（可多选，点击勾选）</span>
+            <a href="#" id="distToggleAll" class="muted" style="font-size:12px">全选</a>
+          </div>
+          <div id="distList" style="max-height:240px;overflow:auto;border:1px solid #d9d9d9;border-radius:6px;padding:4px">
+            ${dir.map((u) => `<label style="display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:4px;cursor:pointer">
+              <input type="checkbox" name="readerIds" value="${u.id}" style="width:16px;height:16px;flex:none" />
+              <span>${escapeHtml(u.name)}<span class="muted">（${escapeHtml(u.dept)}）</span></span>
+            </label>`).join("")}
+          </div>
+          <div class="muted" id="distCount" style="font-size:12px;margin-top:4px">已选 0 人</div>
+        </div>
         <label class="full">分发说明<input name="comment" value="请相关科室阅办" /></label>
         <div class="full row-actions"><button class="primary" type="submit">分发</button><button class="secondary modal-cancel" type="button">取消</button></div>
       </form>`);
-    $("distForm").addEventListener("submit", async (e) => {
+    const distForm = $("distForm");
+    const distBoxes = () => Array.from(distForm.querySelectorAll('input[name="readerIds"]'));
+    const updateDistCount = () => {
+      const n = distBoxes().filter((b) => b.checked).length;
+      $("distCount").textContent = `已选 ${n} 人`;
+      $("distToggleAll").textContent = n === distBoxes().length && n > 0 ? "清空" : "全选";
+    };
+    $("distList").addEventListener("change", updateDistCount);
+    $("distToggleAll").addEventListener("click", (e) => {
       e.preventDefault();
-      const readerIds = Array.from(e.currentTarget.readerIds.selectedOptions).map((o) => Number(o.value));
+      const allChecked = distBoxes().every((b) => b.checked);
+      distBoxes().forEach((b) => { b.checked = !allChecked; });
+      updateDistCount();
+    });
+    distForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const readerIds = distBoxes().filter((b) => b.checked).map((b) => Number(b.value));
       if (!readerIds.length) return alert("请选择分发对象");
       try { await api(`/api/documents/${id}/distribute`, { method: "POST", body: JSON.stringify({ readerIds, comment: e.currentTarget.comment.value }) }); closeModal(); await renderView(); refreshNotify(); }
       catch (err) { alert(err.message); }
