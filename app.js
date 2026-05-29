@@ -255,7 +255,7 @@
         ${statCard("已办申请", dashboard.stats.approvedRequests, "办", "approvedRequests", "看已通过的申请清单")}
         ${statCard("公文流转", dashboard.stats.documents, "文", "documents", "进入公文管理")}
       </div>
-      <div class="grid cols-2" style="margin-top:16px">
+      <div class="grid cols-2" style="margin-top:16px;align-items:start">
         <section class="panel">
           <div class="panel-header"><h2>快捷申请</h2></div>
           <div class="panel-body"><div class="quick-actions">
