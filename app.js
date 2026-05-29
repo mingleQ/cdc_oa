@@ -1590,12 +1590,15 @@
           <label>${req("用车开始时间")}<input type="datetime-local" id="vrStart" name="startDateTime" value="${nowDt}" required /></label>
           <label>${req("用车结束时间")}<input type="datetime-local" id="vrEnd" name="endDateTime" value="${nowDt}" required /></label>
         </div>
+        <div class="leave-row">
+          <label>出发时间<input type="datetime-local" id="vrDepart" name="departureTime" value="${nowDt}" /></label>
+          <label>用车小时数<input id="vrHours" name="durationHours" type="number" step="0.1" value="0" readonly /></label>
+        </div>
         <label class="leave-full">${req("用车事由")}<textarea name="reason" required rows="2" placeholder="请简述用车事由"></textarea></label>
         <label class="leave-full">${req("用车去向")}<input name="destinationDetail" required placeholder="如 中心 → 玉林市疾控中心 → 中心" /></label>
         <div class="leave-row">
           <label>${req("乘车人员")}<input name="passengers" required placeholder="如 张医生、王科长" /></label>
           <label>${req("乘车人数")}<input name="passengerCount" type="number" min="1" value="1" required /></label>
-          <label>用车小时数<input id="vrHours" name="durationHours" type="number" step="0.1" value="0" readonly /></label>
         </div>
         <div class="leave-row">
           <label>${req("候车地点")}<input name="waitLocation" required placeholder="如 单位门口" /></label>
@@ -1629,6 +1632,10 @@
     };
     ["vrStart","vrEnd"].forEach((id) => $f(id).addEventListener("change", recomputeHours));
     recomputeHours();
+    // 出发时间默认跟随用车开始时间；用户一旦手动改过就不再自动跟随
+    let departTouched = false;
+    $f("vrDepart").addEventListener("input", () => { departTouched = true; });
+    $f("vrStart").addEventListener("change", () => { if (!departTouched) $f("vrDepart").value = $f("vrStart").value; });
 
     $("vehicleReqForm").addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -1644,6 +1651,7 @@
         passengerCount: f.get("passengerCount") || "",
         startDateTime: toISO(startDt) || "",
         endDateTime: toISO(endDt) || "",
+        departureTime: toISO(f.get("departureTime")) || "",
         durationHours: f.get("durationHours") || "",
         waitLocation: f.get("waitLocation") || "",
         deptSuggestion: (f.get("deptSuggestion") === "请选择" ? "" : f.get("deptSuggestion")) || "",
@@ -2140,18 +2148,21 @@
           <tr><th>用车事由</th><td colspan="3">${cell(item.reason)}</td></tr>
           <tr><th>用车去向</th><td colspan="3">${cell(f.destinationDetail)}</td></tr>
           <tr><th>乘车人员</th><td>${cell(f.passengers)}</td><th>乘车人数</th><td>${cell(f.passengerCount)}</td></tr>
-          <tr><th>用车时段</th><td colspan="3">${fmtRange()}</td></tr>
+          <tr><th>用车时段</th><td>${fmtRange()}</td><th>出发时间</th><td>${cell(fmtTime(f.departureTime))}</td></tr>
           <tr><th>候车地点</th><td colspan="3">${cell(f.waitLocation)}</td></tr>
           <tr><th>无中心车时，科室建议</th><td>${cell(f.deptSuggestion)}</td><th>其他要求</th><td>${cell(f.otherRequirement)}</td></tr>
           <tr><th>本单位联系人</th><td>${cell(f.internalContact)} ${f.internalPhone ? `<span class="muted">${escapeHtml(f.internalPhone)}</span>` : ""}</td>
               <th>外单位联系人</th><td>${cell(f.externalContact)} ${f.externalPhone ? `<span class="muted">${escapeHtml(f.externalPhone)}</span>` : ""}</td></tr>
-          <tr><th>驾驶员</th><td>${cell(dr.driver || f.preassignDriver)}</td><th>车号</th><td>${cell(dr.plate_no || f.preassignVehicleId)}</td></tr>
+          <tr><th>驾驶员</th><td>${dr.driver ? cell(dr.driver) : (f.preassignDriver ? `${cell(f.preassignDriver)} <span class="muted">(调度建议)</span>` : "—")}</td>
+              <th>车号</th><td>${dr.plate_no ? cell(dr.plate_no) : (f.preassignVehicleId ? `${cell(f.preassignVehicleId)} <span class="muted">(调度建议)</span>` : "—")}</td></tr>
+          ${driveRecord ? `
           <tr><th rowspan="2">行车记录</th>
               <td colspan="3">
                 <div>实际用车时间：${cell(fmtTime(dr.actual_start_time))}　归队时间：${cell(fmtTime(dr.return_time))}</div>
                 <div>发车读表：${cell(dr.start_mileage)} 公里，收车读表：${cell(dr.end_mileage)} 公里，本次行程：${escapeHtml(String(tripKm))} 公里</div>
               </td></tr>
-          <tr><td colspan="3">加油 ${cell(dr.fuel_count)} 次（${cell(dr.fuel_liters)} L），维修 ${cell(dr.maintain_count)} 次</td></tr>
+          <tr><td colspan="3">加油 ${cell(dr.fuel_count)} 次（${cell(dr.fuel_liters)} L），维修 ${cell(dr.maintain_count)} 次</td></tr>` : `
+          <tr><th>行车记录</th><td colspan="3"><span class="muted">出车后由办公室/驾驶员登记，暂无记录</span></td></tr>`}
           <tr><th>备注</th><td colspan="3">${cell(f.remark)}</td></tr>
           ${opinionBlock("科室负责人意见", deptOpinion)}
           ${opinionBlock("办公室意见", officeOpinion)}
