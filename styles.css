@@ -167,6 +167,11 @@ textarea:focus {
 .danger {
   background: var(--danger);
   color: #fff;
+  border: 0;
+}
+
+.danger:hover {
+  background: #a83329;
 }
 
 .account-presets {
@@ -668,7 +673,7 @@ button.link {
   background: none; border: 0; color: var(--primary); cursor: pointer; padding: 2px 4px; font-size: 13px;
 }
 button.link:hover { text-decoration: underline; }
-button.link.danger, .row-actions .danger { color: #c62828; }
+button.link.danger { color: #c62828; }
 
 .tree-node {
   display: flex; justify-content: space-between; align-items: center;
