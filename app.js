@@ -2755,7 +2755,7 @@
         <button class="primary" data-doc-terminate="${doc.id}" title="当前节点可直接办结整个流程">直接办结</button>
       </div>` : ""}
       <div style="margin:12px 0;padding:8px 12px;background:#fff8e1;border-left:3px solid #ffb300;font-size:13px;color:#5d4037">
-        ℹ️ 下方按钮仅做<b>留痕</b>，不会推动流程到下一节点。要审批/流转请关闭本窗口，点击台账上的「<b>审批</b>」按钮。
+        ℹ️ 下方按钮仅做<b>留痕</b>，不会推动流程到下一节点。要审批请关闭本窗口，点击台账上的「<b>审批</b>」按钮。
       </div>
       <div class="row-actions" style="margin:12px 0">
         <button class="secondary" data-doc-action="read">阅读留痕</button>
