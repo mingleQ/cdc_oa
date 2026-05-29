@@ -1982,10 +1982,15 @@
         currentNames.add(item.current_node);
       }
     }
+    // 流程整体办结：发文分发后 / 申请审批通过后，单据落到「归档」等终态节点，
+    // 该节点不产生审批动作（无人“审批归档”），需按办结状态点亮，否则永远显示「未到达」。
+    const isDone = item.status === "approved" || item.status === "archived" || item.status === "done";
+    const isEndNode = (n) => n.node_kind === "end" || /归档|办结|结束/.test(n.node_name || "");
     const statusOf = (n) => {
       const act = actByNode[n.node_name];
       if (act && act.action === "同意") return { cls: "done", badge: "已通过", who: act.approver_name, when: fmtTime(act.approved_at) };
       if (act && act.action === "驳回") return { cls: "rejected", badge: "已驳回", who: act.approver_name, when: fmtTime(act.approved_at) };
+      if (isDone && isEndNode(n)) return { cls: "done", badge: "已归档", who: n.expected_approver_name || "", when: fmtTime(item.updated_at) };
       if (isPending && currentNames.has(n.node_name)) return { cls: "current", badge: "待审批", who: item.current_approver_name || n.expected_approver_name || "" };
       return { cls: "todo", badge: "未到达", who: n.expected_approver_name ? `预计 ${n.expected_approver_name}` : "", when: "" };
     };
