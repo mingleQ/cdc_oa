@@ -256,26 +256,28 @@
         ${statCard("公文流转", dashboard.stats.documents, "文", "documents", "进入公文管理")}
       </div>
       <div class="grid cols-2" style="margin-top:16px;align-items:start">
-        <section class="panel">
-          <div class="panel-header"><h2>快捷申请</h2></div>
-          <div class="panel-body"><div class="quick-actions">
-            ${quickButton("leave", "休", "请假申请")}
-            ${quickButton("trip", "差", "出差申请")}
-            ${quickButton("vehicle", "车", "用车申请")}
-            ${hasModule("document") && canApprove() ? `<button class="quick-action" data-create-doc="收文"><b>文</b><span>收文登记</span></button>` : ""}
-          </div></div>
-        </section>
+        <div class="dash-col" style="display:flex;flex-direction:column;gap:16px">
+          <section class="panel">
+            <div class="panel-header"><h2>快捷申请</h2></div>
+            <div class="panel-body"><div class="quick-actions">
+              ${quickButton("leave", "休", "请假申请")}
+              ${quickButton("trip", "差", "出差申请")}
+              ${quickButton("vehicle", "车", "用车申请")}
+              ${hasModule("document") && canApprove() ? `<button class="quick-action" data-create-doc="收文"><b>文</b><span>收文登记</span></button>` : ""}
+            </div></div>
+          </section>
+          <section class="panel" id="dashboardTodo">
+            <div class="panel-header"><h2 id="dashboardTodoTitle">${dashboardJumpTitle(dashboardJump)}</h2><span class="muted" id="dashboardTodoHint"></span></div>
+            <div class="panel-body" id="dashboardTodoBody"><div class="empty">加载中…</div></div>
+          </section>
+        </div>
         <section class="panel">
           <div class="panel-header"><h2>通知公告</h2>${session && session.roleCode === "admin" ? `<button class="link" data-go-notices>管理公告</button>` : ""}</div>
           <div class="panel-body"><div class="notice-list">
             ${(dashboard.notices || []).length ? dashboard.notices.map(noticeRow).join("") : `<div class="empty">暂无公告</div>`}
           </div></div>
         </section>
-      </div>
-      <section class="panel" style="margin-top:16px" id="dashboardTodo">
-        <div class="panel-header"><h2 id="dashboardTodoTitle">${dashboardJumpTitle(dashboardJump)}</h2><span class="muted" id="dashboardTodoHint"></span></div>
-        <div class="panel-body" id="dashboardTodoBody"><div class="empty">加载中…</div></div>
-      </section>`;
+      </div>`;
     bindActions();
     // 统计卡片点击：公文流转直接进入公文管理；其余切换底部待办面板
     viewRoot.querySelectorAll("[data-stat-jump]").forEach((card) => {
