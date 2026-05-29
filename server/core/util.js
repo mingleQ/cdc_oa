@@ -47,6 +47,9 @@ function publicUser(user) {
     dept: user.dept_name,
     roleCode: user.role_code,
     role: user.role_name,
+    canApprove: user.can_approve != null
+      ? !!user.can_approve
+      : ["admin", "leader", "director", "vice_director"].includes(user.role_code),
     entryDate: user.entry_date || "",
     phone: user.phone || "",
   };

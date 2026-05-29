@@ -177,7 +177,9 @@
     return { dept_leader: "本部门负责人", role: "指定角色", user: "指定人员" }[t] || t;
   }
   function canApprove() {
-    return session && (session.roleCode === "admin" || session.roleCode === "leader");
+    if (!session) return false;
+    if (session.canApprove != null) return !!session.canApprove;
+    return ["admin", "leader", "director", "vice_director"].includes(session.roleCode);
   }
   function hasModule(code) {
     return modules.some((item) => item.code === code);

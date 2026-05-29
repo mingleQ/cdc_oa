@@ -30,14 +30,27 @@ function requireRole(...roles) {
   };
 }
 
+// 默认具备审批能力的角色：管理员、科室负责人、中心主任、副主任。
+// 注意：以角色表的 can_approve 标志为准（甲方可在「角色管理」配置），此列表仅作兜底。
+const APPROVER_ROLES = ["admin", "leader", "director", "vice_director"];
+
 function canApprove(user) {
   if (user && user.can_approve != null) return !!user.can_approve;
-  return user.role_code === "admin" || user.role_code === "leader";
+  return APPROVER_ROLES.includes(user?.role_code);
+}
+
+// 审批类动作统一用此中间件门控：凡是「可审批」的角色都放行，
+// 具体某单据由审批引擎再校验是否本人当前节点。避免把 director/vice_director 等领导挡在门外。
+function requireApprover(req, res, next) {
+  if (!canApprove(req.user)) return res.status(403).json({ message: "无审批权限" });
+  next();
 }
 
 module.exports = {
   signToken,
   requireAuth,
   requireRole,
+  requireApprover,
   canApprove,
+  APPROVER_ROLES,
 };

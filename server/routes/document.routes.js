@@ -1,6 +1,6 @@
 const { db, now } = require("../db");
 const { clientIp, today, pageParams } = require("../core/util");
-const { requireAuth, requireRole } = require("../core/auth");
+const { requireAuth, requireRole, requireApprover } = require("../core/auth");
 const { documentVisibleWhere, canViewDocument, buildReaderIds } = require("../core/permissions");
 const { writeOperationLog, writeApproval, notify } = require("../core/audit");
 const { getUserByAccount, getUserById, getDocumentById } = require("../repository");
@@ -102,13 +102,13 @@ function register(app) {
   // 审批动作统一委托 services/approval：公文与申请共用同一引擎，补齐驳回/转办/加签/撤回。
   const da = approval.documentAdapter;
   const drun = (fn, req, res) => approval.respond(res, fn(da, req.params.id, req.user, req.body, clientIp(req)));
-  app.post("/api/documents/:id/approve", requireAuth, requireRole("admin", "leader"), (req, res) => drun(approval.approve, req, res));
-  app.post("/api/documents/:id/reject", requireAuth, requireRole("admin", "leader"), (req, res) => drun(approval.reject, req, res));
-  app.post("/api/documents/:id/transfer", requireAuth, requireRole("admin", "leader"), (req, res) => drun(approval.transfer, req, res));
-  app.post("/api/documents/:id/add-sign", requireAuth, requireRole("admin", "leader"), (req, res) => drun(approval.addSign, req, res));
-  app.post("/api/documents/:id/withdraw", requireAuth, requireRole("admin", "leader"), (req, res) => drun(approval.withdraw, req, res));
+  app.post("/api/documents/:id/approve", requireAuth, requireApprover, (req, res) => drun(approval.approve, req, res));
+  app.post("/api/documents/:id/reject", requireAuth, requireApprover, (req, res) => drun(approval.reject, req, res));
+  app.post("/api/documents/:id/transfer", requireAuth, requireApprover, (req, res) => drun(approval.transfer, req, res));
+  app.post("/api/documents/:id/add-sign", requireAuth, requireApprover, (req, res) => drun(approval.addSign, req, res));
+  app.post("/api/documents/:id/withdraw", requireAuth, requireApprover, (req, res) => drun(approval.withdraw, req, res));
 
-  app.post("/api/documents/:id/distribute", requireAuth, requireRole("admin", "leader"), (req, res) => {
+  app.post("/api/documents/:id/distribute", requireAuth, requireApprover, (req, res) => {
     const doc = getDocumentById(req.params.id);
     if (!doc) return res.status(404).json({ message: "公文不存在" });
     const ids = Array.isArray(req.body.readerIds) ? req.body.readerIds : [];
@@ -153,7 +153,7 @@ function register(app) {
   app.post("/api/documents/:id/feedback", requireAuth, (req, res) => addReceipt(req, res, "反馈", req.body.comment || ""));
   app.post("/api/documents/:id/print", requireAuth, (req, res) => addReceipt(req, res, "打印", req.body.comment || "打印公文"));
   // 用印登记：盖章/用印动作单独留痕，同时把章号写回主单 seal_no 字段，便于发文存档查看。
-  app.post("/api/documents/:id/seal", requireAuth, requireRole("admin", "leader"), (req, res) => {
+  app.post("/api/documents/:id/seal", requireAuth, requireApprover, (req, res) => {
     const doc = getDocumentById(req.params.id);
     if (!doc) return res.status(404).json({ message: "公文不存在" });
     const sealNo = String(req.body.sealNo || "").trim();
