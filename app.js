@@ -2971,7 +2971,7 @@
     return `<section class="panel" style="margin-top:14px"><div class="panel-header"><h2>附件</h2></div><div class="panel-body">
       <div class="notice-list">${attachments.length ? attachments.map((f) => `<div class="notice-item"><strong>${escapeHtml(f.original_name)}</strong>
         <div class="muted">${Math.ceil(f.size / 1024)} KB · ${escapeHtml(fmtTime(f.created_at))} · ${escapeHtml(f.uploaded_by_name)}</div>
-        <button class="link" data-preview="${f.id}">预览</button> <button class="link" data-download="${f.id}">下载</button></div>`).join("") : `<div class="empty">暂无附件</div>`}</div>
+        <button class="link" data-preview="${f.id}">预览</button> <button class="link" data-download="${f.id}">下载</button>${(session && (session.roleCode === "admin" || f.uploaded_by === session.id)) ? ` <button class="link danger" data-del-att="${f.id}">删除</button>` : ""}</div>`).join("") : `<div class="empty">暂无附件</div>`}</div>
       <form id="attachmentForm" class="row-actions" style="margin-top:12px"><input type="file" name="file" required /><button class="primary" type="submit">上传附件</button></form>
     </div></section>`;
   }
@@ -2979,6 +2979,7 @@
   function bindAttachmentForm(type, id) {
     document.querySelectorAll("[data-download]").forEach((b) => b.addEventListener("click", () => downloadFile(b.dataset.download)));
     document.querySelectorAll("[data-preview]").forEach((b) => b.addEventListener("click", () => previewFile(b.dataset.preview)));
+    document.querySelectorAll("[data-del-att]").forEach((b) => b.addEventListener("click", () => deleteFile(b.dataset.delAtt, type, id)));
     const form = $("attachmentForm");
     if (!form) return;
     form.addEventListener("submit", async (e) => {
@@ -3008,6 +3009,16 @@
     if (!response.ok) return alert("该附件暂不支持预览");
     const blob = await response.blob();
     window.open(URL.createObjectURL(blob), "_blank");
+  }
+
+  async function deleteFile(id, type, businessId) {
+    if (!confirm("确定删除该附件？删除后不可恢复。")) return;
+    try {
+      await api(`/api/attachments/${id}`, { method: "DELETE" });
+      toast("附件已删除", "ok");
+      closeModal();
+      if (type === "document") await openDocDetail(businessId); else await openRequestDetail(businessId);
+    } catch (err) { toast(err.message || "删除失败", "err"); }
   }
 
   async function downloadExport(url) {
