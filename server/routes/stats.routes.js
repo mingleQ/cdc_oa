@@ -21,18 +21,37 @@ const REQUEST_GROUP = {
   status: { col: "r.status", label: "状态" },
 };
 
+const DAYS_EXPR = "SUM(CAST(julianday(r.end_date) - julianday(r.start_date) + 1 AS INTEGER))";
+
 function buildRequestStats(user, query) {
   const visible = requestVisibleWhere(user, "r");
   const params = [...visible.params];
-  const group = REQUEST_GROUP[query.groupBy] || REQUEST_GROUP.category;
   let where = visible.sql;
   if (query.type) { where += " AND r.type = ?"; params.push(query.type); }
   if (query.from) { where += " AND r.start_date >= ?"; params.push(query.from); }
   if (query.to) { where += " AND r.start_date <= ?"; params.push(query.to); }
+  // 按车辆：用车业务专属维度，需经行车记录关联到具体车牌；尚未派车的归入「未派车」。
+  // DISTINCT r.id 避免一单多条行车记录时被重复计数。
+  if (query.groupBy === "vehicle") {
+    const rows = db.prepare(`
+      SELECT COALESCE(v.plate_no, '未派车') AS key,
+             COUNT(DISTINCT r.id) AS count,
+             ${DAYS_EXPR} AS days
+      FROM requests r
+      JOIN users u ON u.id = r.applicant_id
+      JOIN departments d ON d.id = r.dept_id
+      LEFT JOIN vehicle_records vr ON vr.request_id = r.id
+      LEFT JOIN vehicles v ON v.id = vr.vehicle_id
+      WHERE ${where}
+      GROUP BY key ORDER BY count DESC
+    `).all(...params);
+    return { label: "车辆", rows };
+  }
+  const group = REQUEST_GROUP[query.groupBy] || REQUEST_GROUP.category;
   const rows = db.prepare(`
     SELECT ${group.col} AS key,
            COUNT(*) AS count,
-           SUM(CAST(julianday(r.end_date) - julianday(r.start_date) + 1 AS INTEGER)) AS days
+           ${DAYS_EXPR} AS days
     FROM requests r
     JOIN users u ON u.id = r.applicant_id
     JOIN departments d ON d.id = r.dept_id

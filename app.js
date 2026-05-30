@@ -2909,7 +2909,7 @@
     viewRoot.innerHTML = `
       <div class="filter-bar">
         <select data-f="type"><option value="">全部业务</option><option value="leave">请假</option><option value="trip">出差</option><option value="vehicle">用车</option></select>
-        <select data-f="groupBy"><option value="category">按类别</option><option value="person">按人</option><option value="dept">按部门</option><option value="type">按类型</option><option value="month">按月份</option><option value="status">按状态</option></select>
+        <select data-f="groupBy"><option value="category">按类别</option><option value="person">按人</option><option value="dept">按部门</option><option value="type">按类型</option><option value="month">按月份</option><option value="status">按状态</option><option value="vehicle">按车辆</option></select>
         <input data-f="from" type="date" /><input data-f="to" type="date" />
         <button class="secondary" data-do-filter>统计</button>
         <button class="secondary" id="statExport">导出 Excel</button>
