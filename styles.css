@@ -863,9 +863,24 @@ button.link.danger:hover { background: none; color: #a83329; text-decoration: un
 
 /* === DAG 流程编辑器 === */
 .wf-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 0 8px; }
-.wf-canvas-wrap { border: 1px solid var(--line); border-radius: 8px; background: #fafbfd; overflow: auto; max-height: 520px; }
-.wf-canvas { position: relative; width: 1400px; height: 620px; }
+.wf-canvas-outer { position: relative; }
+.wf-canvas-wrap { border: 1px solid var(--line); border-radius: 8px; background: #fafbfd;
+  overflow: auto; height: 56vh; min-height: 340px; max-height: 640px; cursor: grab;
+  background-image: radial-gradient(#dde5ef 1px, transparent 1px); background-size: 22px 22px; }
+.wf-canvas-wrap.panning { cursor: grabbing; }
+.wf-canvas-sizer { position: relative; width: 1400px; height: 620px; }
+.wf-canvas { position: absolute; left: 0; top: 0; width: 1400px; height: 620px; transform-origin: 0 0; }
 .wf-svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+
+/* 缩放工具条（浮于画布右下角） */
+.wf-zoom-bar { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 4px;
+  background: rgba(255,255,255,.95); border: 1px solid var(--line); border-radius: 8px;
+  padding: 4px; box-shadow: 0 2px 8px rgba(15,76,129,.12); z-index: 5; }
+.wf-zoom-bar button { min-width: 30px; height: 28px; padding: 0 8px; border: none; background: transparent;
+  border-radius: 6px; color: #44505f; font-size: 14px; cursor: pointer; transition: background .12s; }
+.wf-zoom-bar button:hover { background: var(--soft-blue); color: var(--primary); }
+#wfZoomVal { min-width: 48px; font-size: 12px; font-weight: 600; }
+#wfZoomFit { font-size: 12px; }
 .wf-svg .wf-edge { fill: none; stroke: #9aa9bd; stroke-width: 1.6; pointer-events: stroke; cursor: pointer; transition: stroke .15s; }
 .wf-svg .wf-edge:hover { stroke: #5d7da3; stroke-width: 2; }
 .wf-svg .wf-edge.selected { stroke: var(--primary); stroke-width: 2.2; }

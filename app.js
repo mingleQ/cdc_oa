@@ -983,14 +983,26 @@
         <button type="button" class="secondary" data-add="end">+ 结束节点</button>
         <button type="button" class="secondary" id="wfConnect" title="先选起点节点，再点此按钮，然后点目标节点">↦ 连线</button>
         <button type="button" class="link danger" id="wfClear">清空</button>
-        <span class="muted" style="margin-left:auto;font-size:12px">拖动节点改位置 · 单击选中 · Shift+点节点 = 从当前选中节点连线过去</span>
+        <span class="muted" style="margin-left:auto;font-size:12px">拖节点改位置 · 拖空白处平移画布 · ⌘/Ctrl+滚轮缩放 · Shift+点节点=连线</span>
       </div>
-      <div class="wf-canvas-wrap"><div class="wf-canvas" id="wfCanvas">
-        <svg class="wf-svg" id="wfSvg" width="100%" height="100%">
-          <defs><marker id="wfArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
-            <path d="M0,0 L10,5 L0,10 z" fill="#9aa9bd"/></marker></defs>
-        </svg>
-      </div></div>
+      <div class="wf-canvas-outer">
+        <div class="wf-canvas-wrap" id="wfWrap">
+          <div class="wf-canvas-sizer" id="wfSizer">
+            <div class="wf-canvas" id="wfCanvas">
+              <svg class="wf-svg" id="wfSvg" width="100%" height="100%">
+                <defs><marker id="wfArrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+                  <path d="M0,0 L10,5 L0,10 z" fill="#9aa9bd"/></marker></defs>
+              </svg>
+            </div>
+          </div>
+        </div>
+        <div class="wf-zoom-bar">
+          <button type="button" id="wfZoomOut" title="缩小">−</button>
+          <button type="button" id="wfZoomVal" title="点击恢复 100%">100%</button>
+          <button type="button" id="wfZoomIn" title="放大">+</button>
+          <button type="button" id="wfZoomFit" title="适应窗口">适应</button>
+        </div>
+      </div>
       <div id="wfEditor" class="wf-side-editor"></div>
       <div class="row-actions" style="margin-top:14px">
         <button class="primary" id="wfSave" type="button">保存</button>
@@ -1002,6 +1014,8 @@
 
     const canvas = $("wfCanvas");
     const svg = $("wfSvg");
+    const wrap = $("wfWrap");
+    const sizer = $("wfSizer");
     const NODE_W = 168, NODE_H = 70;
     const getNode = (id) => nodes.find((n) => n.id === id);
     const getEdge = (id) => edges.find((e) => e.id === id);
@@ -1011,6 +1025,52 @@
     const curve = (a, b) => {
       const dx = Math.max(40, Math.abs(b.x - a.x) / 2);
       return `M ${a.x},${a.y} C ${a.x + dx},${a.y} ${b.x - dx},${b.y} ${b.x},${b.y}`;
+    };
+
+    // ---- 缩放 / 平移视口 ----
+    let zoom = 1;
+    const ZMIN = 0.4, ZMAX = 1.8;
+    const contentBounds = () => {
+      let w = 900, h = 460;
+      nodes.forEach((n) => {
+        w = Math.max(w, (n.posX || 0) + NODE_W);
+        h = Math.max(h, (n.posY || 0) + NODE_H);
+      });
+      return { w: w + 200, h: h + 160 }; // 留白，节点可继续往外拖
+    };
+    const applyZoom = () => {
+      const b = contentBounds();
+      canvas.style.width = b.w + "px";
+      canvas.style.height = b.h + "px";
+      canvas.style.transform = `scale(${zoom})`;
+      sizer.style.width = b.w * zoom + "px";
+      sizer.style.height = b.h * zoom + "px";
+      const zb = $("wfZoomVal"); if (zb) zb.textContent = Math.round(zoom * 100) + "%";
+    };
+    const setZoom = (z, anchor) => {
+      z = Math.min(ZMAX, Math.max(ZMIN, z));
+      const rect = wrap.getBoundingClientRect();
+      const a = anchor || { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      const ax = a.x - rect.left, ay = a.y - rect.top;
+      const cx = (wrap.scrollLeft + ax) / zoom, cy = (wrap.scrollTop + ay) / zoom;
+      zoom = z; applyZoom();
+      wrap.scrollLeft = cx * zoom - ax; wrap.scrollTop = cy * zoom - ay;
+    };
+    const fitView = () => {
+      const b = contentBounds();
+      const rect = wrap.getBoundingClientRect();
+      if (!rect.width) return;
+      zoom = Math.min(ZMAX, Math.max(ZMIN, Math.min((rect.width - 28) / b.w, (rect.height - 28) / b.h)));
+      applyZoom();
+      wrap.scrollLeft = 0; wrap.scrollTop = 0;
+    };
+    // 屏幕坐标 → 画布内容坐标（已抵消缩放与滚动）
+    const pointerToContent = (ev) => {
+      const rect = wrap.getBoundingClientRect();
+      return {
+        x: (wrap.scrollLeft + ev.clientX - rect.left) / zoom,
+        y: (wrap.scrollTop + ev.clientY - rect.top) / zoom,
+      };
     };
 
     function renderCanvas() {
@@ -1053,22 +1113,44 @@
           svg.appendChild(t);
         }
       });
+      applyZoom(); // 节点移动后画布按内容自动扩展
     }
 
     function bindNodeEvents(el, n) {
-      let dragging = false, sx = 0, sy = 0, ox = 0, oy = 0, moved = false;
-      const onMove = (ev) => {
-        if (!dragging) return;
-        const dx = ev.clientX - sx, dy = ev.clientY - sy;
-        if (Math.abs(dx) + Math.abs(dy) > 3) moved = true;
-        n.posX = Math.max(0, ox + dx);
-        n.posY = Math.max(0, oy + dy);
+      let dragging = false, startX = 0, startY = 0, grabX = 0, grabY = 0, moved = false, lastEv = null, timer = null;
+      const place = () => {
+        if (!lastEv) return;
+        const p = pointerToContent(lastEv);
+        n.posX = Math.max(0, Math.round(p.x - grabX));
+        n.posY = Math.max(0, Math.round(p.y - grabY));
         renderCanvas();
       };
-      const onUp = () => { dragging = false; document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp); };
+      const autoScroll = () => { // 拖到画布边缘时自动滚动，节点随之继续移动
+        if (!dragging || !lastEv) return;
+        const rect = wrap.getBoundingClientRect(), m = 36, step = 16;
+        let dx = 0, dy = 0;
+        if (lastEv.clientY > rect.bottom - m) dy = step; else if (lastEv.clientY < rect.top + m) dy = -step;
+        if (lastEv.clientX > rect.right - m) dx = step; else if (lastEv.clientX < rect.left + m) dx = -step;
+        if (dx || dy) { wrap.scrollLeft += dx; wrap.scrollTop += dy; place(); }
+      };
+      const onMove = (ev) => {
+        if (!dragging) return;
+        lastEv = ev;
+        if (Math.abs(ev.clientX - startX) + Math.abs(ev.clientY - startY) > 3) moved = true;
+        place();
+      };
+      const onUp = () => {
+        dragging = false;
+        if (timer) { clearInterval(timer); timer = null; }
+        document.removeEventListener("mousemove", onMove); document.removeEventListener("mouseup", onUp);
+      };
       el.addEventListener("mousedown", (ev) => {
         if (ev.target.classList.contains("wf-node-handle")) return;
-        dragging = true; sx = ev.clientX; sy = ev.clientY; ox = n.posX || 0; oy = n.posY || 0; moved = false;
+        ev.preventDefault();
+        dragging = true; moved = false; startX = ev.clientX; startY = ev.clientY; lastEv = ev;
+        const p = pointerToContent(ev);
+        grabX = p.x - (n.posX || 0); grabY = p.y - (n.posY || 0);
+        timer = setInterval(autoScroll, 30);
         document.addEventListener("mousemove", onMove); document.addEventListener("mouseup", onUp);
       });
       el.addEventListener("click", (ev) => {
@@ -1227,7 +1309,40 @@
       connectFrom = selected.id; renderCanvas();
     };
     $("wfClear").onclick = () => { if (!confirm("清空全部节点与箭头？")) return; nodes = []; edges = []; selected = null; renderCanvas(); renderEditor(); };
-    canvas.onclick = (ev) => { if (ev.target === canvas || ev.target === svg) { selected = null; connectFrom = null; renderCanvas(); renderEditor(); } };
+
+    // 缩放工具条
+    $("wfZoomIn").onclick = () => setZoom(zoom * 1.15);
+    $("wfZoomOut").onclick = () => setZoom(zoom / 1.15);
+    $("wfZoomVal").onclick = () => setZoom(1);
+    $("wfZoomFit").onclick = () => fitView();
+    // ⌘/Ctrl+滚轮（含触控板捏合）= 以光标为锚点缩放；普通滚轮 = 原生平移
+    wrap.addEventListener("wheel", (ev) => {
+      if (!(ev.ctrlKey || ev.metaKey)) return;
+      ev.preventDefault();
+      setZoom(zoom * (ev.deltaY < 0 ? 1.12 : 0.89), { x: ev.clientX, y: ev.clientY });
+    }, { passive: false });
+
+    // 在空白处按下拖动 = 平移画布；未移动则视为点击空白 = 取消选中
+    wrap.addEventListener("mousedown", (ev) => {
+      if (ev.button !== 0) return;
+      if (ev.target.closest && ev.target.closest(".wf-node")) return; // 节点自身处理拖拽
+      if (ev.target.tagName === "path") return; // 箭头处理选中
+      ev.preventDefault();
+      const sx = ev.clientX, sy = ev.clientY, sl = wrap.scrollLeft, st = wrap.scrollTop;
+      let panMoved = false;
+      wrap.classList.add("panning");
+      const mv = (e) => {
+        if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 2) panMoved = true;
+        wrap.scrollLeft = sl - (e.clientX - sx);
+        wrap.scrollTop = st - (e.clientY - sy);
+      };
+      const up = () => {
+        wrap.classList.remove("panning");
+        document.removeEventListener("mousemove", mv); document.removeEventListener("mouseup", up);
+        if (!panMoved) { selected = null; connectFrom = null; renderCanvas(); renderEditor(); }
+      };
+      document.addEventListener("mousemove", mv); document.addEventListener("mouseup", up);
+    });
 
     async function doSave(asNew) {
       const businessType = $("wfBiz").value;
@@ -1251,6 +1366,7 @@
     $("wfSaveAs").onclick = () => doSave(true);
 
     renderCanvas(); renderEditor();
+    requestAnimationFrame(fitView); // 打开时自动适应窗口，确保所有节点可见
   }
 
   async function enableWorkflow(id) {
