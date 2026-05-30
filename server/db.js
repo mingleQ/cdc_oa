@@ -486,7 +486,7 @@ function ensureDefaultWorkflows() {
     const result = db.prepare("INSERT INTO workflow_definitions (business_type, name, version, enabled, created_at) VALUES (?, ?, 1, 1, ?)")
       .run(businessType, name, now());
     const insertNode = db.prepare("INSERT INTO workflow_nodes (workflow_id, node_name, approver_type, approver_value, condition_json, approve_mode, sort_order, allow_terminal) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
-    nodes.forEach((node, index) => insertNode.run(
+    const nodeIds = nodes.map((node, index) => insertNode.run(
       result.lastInsertRowid,
       node.name,
       node.approverType || "role",
@@ -495,7 +495,16 @@ function ensureDefaultWorkflows() {
       node.mode || "single",
       index + 1,
       index === nodes.length - 1 ? 1 : 0,
-    ));
+    ).lastInsertRowid);
+    // DAG 出边：审批推进完全依赖边（server/services/approval.js），故 seed 必须同步建边。
+    // 分支条件配在节点上，这里把「目标节点的条件」搬到指向它的入边——线性链即无条件直连，
+    // 带条件的节点（如请假 days>=3 的分管领导）则让入边携带该条件，条件不满足即流转至下一节点/归档。
+    const insertEdge = db.prepare("INSERT INTO workflow_edges (workflow_id, from_node_id, to_node_id, label, condition_json, sort_order) VALUES (?, ?, ?, ?, ?, ?)");
+    for (let i = 0; i < nodeIds.length; i += 1) {
+      const to = nodeIds[i + 1] != null ? nodeIds[i + 1] : null; // 末节点 -> 结束（NULL）
+      const cond = i + 1 < nodes.length ? (nodes[i + 1].condition || {}) : {};
+      insertEdge.run(result.lastInsertRowid, nodeIds[i], to, "", JSON.stringify(cond), 1);
+    }
   });
   createWorkflow("leave", "请假审批默认流程", [
     { name: "部门负责人审批", approverType: "dept_leader", approverValue: "" },
